@@ -1,0 +1,49 @@
+name: Maester - Entra ID security scan
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 02:30 UTC Monday-Friday (runs after Prowler; adjust to suit)
+    - cron: '30 2 * * 1-5'
+
+permissions:
+  id-token: write
+  contents: read
+  checks:   write     # lets Maester create annotations & a summary
+
+concurrency:
+  group: maester-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  maester:
+    runs-on: ubuntu-latest
+
+    steps:
+
+    # Maester-action negotiates its own OIDC token; no azure/login needed
+    - name: Run Maester
+      id: maester
+      uses: maester365/maester-action@v1.0.1
+      with:
+        tenant_id:             ${{ secrets.AZURE_TENANT_ID }}
+        client_id:             ${{ secrets.AZURE_CLIENT_ID }}
+        include_public_tests:  true
+        include_private_tests: false
+        include_exchange:      false      # flip to true if you’ve granted EXO scope
+        include_teams:         false
+        pester_verbosity:      None       # None | Normal | Detailed | Diagnostic
+        step_summary:          true       # pretty Markdown in the run log
+        artifact_upload:       true       # attach JUnit + logs to the run
+        maester_version:       latest
+        disable_telemetry:     false
+
+    # Handy recap in plain text
+    - name: Echo Maester result
+      if: always()
+      run: |
+        echo "Maester overall result: ${{ steps.maester.outputs.result }}"
+        echo "Tests:   ${{ steps.maester.outputs.tests_total }}"
+        echo "Passed:  ${{ steps.maester.outputs.tests_passed }}"
+        echo "Failed:  ${{ steps.maester.outputs.tests_failed }}"
+        echo "Skipped: ${{ steps.maester.outputs.tests_skipped }}"
